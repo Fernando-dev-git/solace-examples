@@ -1,0 +1,125 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: 'application'
+
+// Don't need these task, so disabling them. Makes it possible to avoid
+// declaring a single application main class.
+startScripts.enabled = false
+run.enabled = false
+
+// Also don't need the regular application distribution packages since
+// this is just a set of samples. So disabling to make the build output
+// cleaner
+distTar.enabled=false
+distZip.enabled=false
+
+applicationName = 'solace-samples-jms'
+//version = ''
+
+jar {
+    archiveBaseName = 'solace-samples-jms'
+    archiveVersion = ''
+    manifest {
+        attributes 'Implementation-Title': 'Solace Getting Started Samples',
+                   'Implementation-Version': ''
+    }
+}
+
+// Download context sensitive help and/or source code for eclipse and idea
+eclipse {
+    classpath {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+    jdt {
+        //if you want to alter the java versions (by default they are configured with gradle java plugin settings):
+        sourceCompatibility = 1.8
+        targetCompatibility = 1.8
+    }
+}
+
+idea {
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+
+dependencies {
+    // Solace Messaging API for JMS Dependencies
+    implementation('com.solacesystems:sol-jms:10.19.0')
+    implementation group: 'javax.jms', name: 'javax.jms-api', version: '2.0.1'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.17.1'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.17.1'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-jcl', version: '2.17.1'
+
+    //OpenTelemetry dependency
+    implementation group: 'io.opentelemetry', name: 'opentelemetry-api', version: '1.19.0'
+    implementation group: 'io.opentelemetry', name: 'opentelemetry-sdk', version: '1.19.0'
+    implementation group: 'io.opentelemetry', name: 'opentelemetry-exporter-otlp', version: '1.19.0'
+    implementation group: 'io.opentelemetry', name: 'opentelemetry-semconv', version: '1.19.0-alpha'
+
+    //Solace OpenTelemetry Integration for JMS
+    implementation group: 'com.solace', name: 'solace-opentelemetry-jms-integration', version: '1.0.0'
+
+    // For any local libs that are not available from mavenCentral
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            exclude '**/DirectProcessor.java'
+       }
+   }
+}
+
+def scripts = [
+    'HelloWorld':'com.solace.samples.jms.HelloWorld',
+    'NonPersistentProcessor':'com.solace.samples.jms.patterns.NonPersistentProcessor',
+    'NonPersistentPublisher':'com.solace.samples.jms.patterns.NonPersistentPublisher',
+    'NonPersistentSubscriber':'com.solace.samples.jms.patterns.NonPersistentSubscriber',
+    'topicPublisher': 'com.solace.samples.TopicPublisher',
+    'topicSubscriber':'com.solace.samples.TopicSubscriber',
+    'queueProducer':'com.solace.samples.QueueProducer',
+    'queueConsumer':'com.solace.samples.QueueConsumer',
+    'basicRequestor':'com.solace.samples.BasicRequestor',
+    'basicReplier':'com.solace.samples.BasicReplier',
+    'queueProducerJNDI':'com.solace.samples.QueueProducerJNDI',
+    'queueConsumerJNDI':'com.solace.samples.QueueConsumerJNDI',
+    'extJndiImport':'com.solace.samples.ExtJndiImport',
+    'extJndiTest':'com.solace.samples.ExtJndiTest',
+    'dtQueuePublisher':'com.solace.samples.features.distributedtracing.manualinstrumentation.QueuePublisher',
+    'dtQueueSubscriber':'com.solace.samples.features.distributedtracing.manualinstrumentation.QueueSubscriber',
+    'dtTopicPublisher':'com.solace.samples.features.distributedtracing.manualinstrumentation.TopicPublisher',
+    'dtTopicSubscriber':'com.solace.samples.features.distributedtracing.manualinstrumentation.TopicSubscriber',
+    'dtTopicSyncReceiver':'com.solace.samples.features.distributedtracing.manualinstrumentation.TopicSyncReceiver'
+]
+
+scripts.each() { scriptName, className ->
+        def t = tasks.create(name: scriptName+'StartScript', type: CreateStartScripts) {
+        mainClass = className
+        applicationName = scriptName
+        outputDir = new File(project.buildDir, 'scripts')
+        classpath = jar.outputs.files + project.configurations.runtimeClasspath
+    }
+    applicationDistribution.into("bin") {
+        from(t)
+        fileMode = 0755
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+    //createAllStartScripts.dependsOn(t)
+}
+
+installDist {
+    destinationDir = new File(project.buildDir, 'staged')
+}
+
+assemble.dependsOn installDist
